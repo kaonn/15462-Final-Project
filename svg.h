@@ -118,6 +118,9 @@ struct Image : SVGElement {
 struct Ifs : SVGElement {
   Ifs () : SVGElement (IFS) {}
   std::vector <Matrix3x3> system;
+  std::vector <double> pdf;
+  std::vector <Color> colors;
+  std::vector <unsigned int> variations;
 
 };
 struct SVG {

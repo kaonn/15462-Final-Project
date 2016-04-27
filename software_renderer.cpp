@@ -4,6 +4,7 @@
 #include <vector>
 #include <iostream>
 #include <algorithm>
+#include <random>
 
 #include "triangulation.h"
 
@@ -11,7 +12,8 @@ using namespace std;
 
 namespace CMU462 {
 
-#define IFS_ITER 10000
+#define IFS_ITER 100000
+#define GAMMA 4
 // Implements SoftwareRenderer //
 
 void SoftwareRendererImp::draw_svg( SVG& svg ) {
@@ -64,7 +66,10 @@ void SoftwareRendererImp::set_render_target( unsigned char* render_target,
   printf("target_w: %lu target_h: %lu\n", width, height);
   super_w = sample_rate * (target_w);
   super_h = sample_rate * (target_h);
+  hist_w = sample_rate * (target_w);
+  hist_h = sample_rate * (target_h);
   supersample_buffer.resize(4*(super_w)*(super_h),255);
+  histogram.resize((super_w)*(super_h),0);
   printf("target set!\n");
 }
 
@@ -213,22 +218,52 @@ void SoftwareRendererImp::draw_ellipse( Ellipse& ellipse ) {
 
 }
 
+void SoftwareRendererImp::update_histogram(double x, double y, Color c){
+    size_t sx = (size_t) x % super_w;
+    size_t sy = (size_t) y % super_h;
+
+    printf("updating: sx: %lu sy: %lu\n", sx, sy);
+    if(histogram[sx + sy * super_w] == freq_max){
+        freq_max++;
+    }
+    histogram[sx + sy * hist_w]++;
+    auto r = supersample_buffer[4*(sx + sy * super_w)];
+    auto g = supersample_buffer[4*(sx + sy * super_w) + 1];
+    auto b = supersample_buffer[4*(sx + sy * super_w) + 2];
+    auto a = supersample_buffer[4*(sx + sy * super_w) + 3];
+    supersample_buffer[4*(sx + sy * super_w)] = (uint8_t)(r/2 + 127.5*c.r);
+    supersample_buffer[4*(sx + sy * super_w)+1] = (uint8_t)(g/2 + 127.5*c.g);
+    supersample_buffer[4*(sx + sy * super_w)+2] = (uint8_t)(b/2 + 127.5*c.b);
+    supersample_buffer[4*(sx + sy * super_w)+3] = (uint8_t)(a/2 + 127.5*c.a);
+}
+
 void SoftwareRendererImp::draw_ifs(SVG& svg, Ifs& ifs){
     double x = ((double)rand() / (double)RAND_MAX) ;
     double y = ((double)rand() / (double)RAND_MAX) ;
-        printf("svg w: %f, svg h: %f\n",svg.width, svg.height);
+    
+    printf("svg w: %f, svg h: %f\n",svg.width, svg.height);
     int num_fcts = ifs.system.size();
     size_t fct_index;
     Matrix3x3 mat;
+    Color c;
 
+    isIFS = true;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    std::discrete_distribution<> d(ifs.pdf.begin(),ifs.pdf.end());
     for(int i = 0 ; i < IFS_ITER; i++){
-        fct_index = rand() % num_fcts;
+        //fct_index = rand() % num_fcts;
+        fct_index = d(gen);
         mat = ifs.system[fct_index];
+        c = ifs.colors[fct_index];
         Vector3D mapped = mat * Vector3D(x,y,1);
-        x = mapped.x;
-        y = mapped.y;
+        x = sin(M_PI*(mapped.x)/2);
+        y = sin(M_PI*(mapped.y)/2);
         if(i < 20) continue;
-        rasterize_point((x) * (double)svg.width + (double)(target_w - svg.width)/2, (y) * (double)svg.height + (double)(target_h - svg.height)/2, Color(1,0,0,1));
+        //rasterize_point((x+1)/2 * (double)svg.width + (double)(target_w - svg.width)/2, (y+1)/2 * (double)svg.height + (double)(target_h - svg.height)/2, Color(1,0,0,1));
+        //update_histogram((x) * (double), (y) * (double)super_h, c);
+        update_histogram((x+1)/2 * (double)(sample_rate*svg.width) + (double)(super_w - sample_rate*svg.width)/2, (y+1)/2 * (double)(sample_rate*svg.height) + (double)(super_h - sample_rate*svg.height)/2, c);
     }
 
 }
@@ -484,11 +519,12 @@ void SoftwareRendererImp::resolve( void ) {
   // You may also need to modify other functions marked with "Task 3".
   //
   size_t blocksize = sample_rate;
-  float r=0.0,g=0.0,b=0.0,a=0.0;
+  float r=0.0,g=0.0,b=0.0,a=0.0,alpha = 0.0;
+  unsigned int total_freq = 0;
   for(size_t j = 0; j < target_h; j++){
     for(size_t i = 0; i < target_w; i++){
 
-      r = 0.0;g=0.0;b=0.0,a=0.0;
+      r = 0.0;g=0.0;b=0.0,a=0.0,total_freq = 0;
       
       for(size_t l = blocksize*j; l < blocksize*j + blocksize; l++){
         for(size_t k = blocksize*i; k < blocksize*i + blocksize; k++){
@@ -496,16 +532,23 @@ void SoftwareRendererImp::resolve( void ) {
            g += supersample_buffer[4*(k + l*super_w) + 1];
            b += supersample_buffer[4*(k + l*super_w) + 2];
            a += supersample_buffer[4*(k + l*super_w) + 3];
+
+           total_freq += histogram[(k + l*super_w)];
         }
       }
-      render_target[4 * (i + j * target_w)    ] = (uint8_t) (r/(blocksize*blocksize)); 
-      render_target[4 * (i + j * target_w) + 1] = (uint8_t) (g/(blocksize*blocksize)); 
-      render_target[4 * (i + j * target_w) + 2] = (uint8_t) (b/(blocksize*blocksize)); 
-      render_target[4 * (i + j * target_w) + 3] = (uint8_t) (a/(blocksize*blocksize)); 
+      a = log(total_freq)/log(freq_max) * a;
+      alpha = pow(a,(double)1/GAMMA);
+
+      render_target[4 * (i + j * target_w)    ] = (uint8_t) (r/(blocksize*blocksize) * alpha); 
+      render_target[4 * (i + j * target_w) + 1] = (uint8_t) (g/(blocksize*blocksize) * alpha); 
+      render_target[4 * (i + j * target_w) + 2] = (uint8_t) (b/(blocksize*blocksize) * alpha); 
+      render_target[4 * (i + j * target_w) + 3] = 255*alpha; 
 
     }
   }
   printf("finished resolving!\n");
+  printf("target_w: %lu target_h: %lu\n", target_w, target_h);
+  printf("max: %lu\n", freq_max);
   clear_supersample_buffer();
   return;
 

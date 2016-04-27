@@ -63,6 +63,12 @@ class SoftwareRenderer : public SVGRenderer {
 }; // class SoftwareRenderer
 
 
+struct Sample{
+    Sample(Color c = Color(),unsigned int f = 0) : freq(f), color(c){}
+    Color color;
+    unsigned int freq;
+};
+
 class SoftwareRendererImp : public SoftwareRenderer {
  public:
 
@@ -136,14 +142,24 @@ class SoftwareRendererImp : public SoftwareRenderer {
   // resolve samples to render target
   void resolve( void );
 
+  void update_histogram(double x, double y, Color c);
   std::vector<unsigned char> supersample_buffer; 
   size_t super_w, super_h;
+
+  std::vector<unsigned int> histogram;
+  size_t hist_w, hist_h;
+
+  size_t freq_max=0;
+
+  bool isIFS=false;
+
 
   void fill_sample( int sx, int sy, const Color& c );
   void fill_pixel( int x, int y, const Color& c );
 
   inline void clear_supersample_buffer  () {
     supersample_buffer.assign(supersample_buffer.size(),255);
+    histogram.assign(histogram.size(),0);
   }
 
 }; // class SoftwareRendererImp

@@ -375,8 +375,13 @@ void SVGParser::parseIfs( XMLElement* xml, Ifs* ifs ) {
   XMLElement* first = xml->FirstChildElement();
 
   vector<Matrix3x3> &fcts = ifs->system;
+  vector<double> &pdf = ifs->pdf;
+  vector<Color> &colors = ifs->colors;
   while(first){
       fcts.push_back(parseMatrix(first->Attribute("matrix")));
+      pdf.push_back(first->DoubleAttribute("p"));
+      colors.push_back(Color::fromHex(first->Attribute("c")));
+
       first = first->NextSiblingElement();
   }
 
