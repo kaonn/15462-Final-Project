@@ -222,9 +222,6 @@ Color blend(Color element,vector<unsigned char> &buffer,size_t width,
 }
 
 void SoftwareRendererImp::update_histogram(double x, double y, Color c){
-    size_t sx = (size_t) x ;
-    size_t sy = (size_t) y ;
-    
     size_t xl = (size_t)(floor(x));
     size_t yt = (size_t)(floor(y));
     size_t xr = (size_t)(ceil(x));
@@ -239,29 +236,45 @@ void SoftwareRendererImp::update_histogram(double x, double y, Color c){
     double f3 = (1-xf)*yf;
     double f4 = xf*yf;
 
+    Color c1 = f1 * c;
+    Color c2 = f2 * c;
+    Color c3 = f3 * c;
+    Color c4 = f4 * c;
+
     histogram[xl + yt * super_w] += f1;
     histogram[xr + yt * super_w] += f2;
     histogram[xl + yb * super_w] += f3;
     histogram[xr + yb * super_w] += f4;
+
     double max_f = max(max(histogram[xl + yt * super_w],histogram[xr + yt * super_w]),
                        max(histogram[xl + yb * super_w],histogram[xr + yb * super_w]));
     if(max_f > freq_max){
         freq_max = max_f;
     }
 
-    auto r = supersample_buffer[4*(sx + sy * super_w)];
-    auto g = supersample_buffer[4*(sx + sy * super_w) + 1];
-    auto b = supersample_buffer[4*(sx + sy * super_w) + 2];
-    auto a = supersample_buffer[4*(sx + sy * super_w) + 3];
-    //Color c = blend(color,supersample_buffer,super_w,sx,sy);
-    supersample_buffer[4*(sx + sy * super_w)] = (uint8_t)(r/2 + 127.5*c.r);
-    supersample_buffer[4*(sx + sy * super_w)+1] = (uint8_t)(g/2 + 127.5*c.g);
-    supersample_buffer[4*(sx + sy * super_w)+2] = (uint8_t)(b/2 + 127.5*c.b);
-    supersample_buffer[4*(sx + sy * super_w)+3] = (uint8_t)(a/2 + 127.5*c.a);
-      //supersample_buffer[4 * (sx + sy * super_w)    ] = (uint8_t) (color.r * 255);
-      //supersample_buffer[4 * (sx + sy * super_w) + 1] = (uint8_t) (color.g * 255);
-      //supersample_buffer[4 * (sx + sy * super_w) + 2] = (uint8_t) (color.b * 255);
-      //supersample_buffer[4 * (sx + sy * super_w) + 3] = (uint8_t) (color.a * 255);
+    Color b1 = blend(c1,supersample_buffer,super_w,xl,yt);
+    supersample_buffer[4 * (xl + yt * super_w)    ] = (uint8_t) (b1.r * 255);
+    supersample_buffer[4 * (xl + yt * super_w) + 1] = (uint8_t) (b1.g * 255);
+    supersample_buffer[4 * (xl + yt * super_w) + 2] = (uint8_t) (b1.b * 255);
+    supersample_buffer[4 * (xl + yt * super_w) + 3] = (uint8_t) (b1.a * 255);
+
+    Color b2 = blend(c2,supersample_buffer,super_w,xr,yt);
+    supersample_buffer[4 * (xr + yt * super_w)    ] = (uint8_t) (b2.r * 255);
+    supersample_buffer[4 * (xr + yt * super_w) + 1] = (uint8_t) (b2.g * 255);
+    supersample_buffer[4 * (xr + yt * super_w) + 2] = (uint8_t) (b2.b * 255);
+    supersample_buffer[4 * (xr + yt * super_w) + 3] = (uint8_t) (b2.a * 255);
+
+    Color b3 = blend(c3,supersample_buffer,super_w,xl,yb);
+    supersample_buffer[4 * (xl + yb * super_w)    ] = (uint8_t) (b3.r * 255);
+    supersample_buffer[4 * (xl + yb * super_w) + 1] = (uint8_t) (b3.g * 255);
+    supersample_buffer[4 * (xl + yb * super_w) + 2] = (uint8_t) (b3.b * 255);
+    supersample_buffer[4 * (xl + yb * super_w) + 3] = (uint8_t) (b3.a * 255);
+
+    Color b4 = blend(c4,supersample_buffer,super_w,xr,yb);
+    supersample_buffer[4 * (xr + yb * super_w)    ] = (uint8_t) (b4.r * 255);
+    supersample_buffer[4 * (xr + yb * super_w) + 1] = (uint8_t) (b4.g * 255);
+    supersample_buffer[4 * (xr + yb * super_w) + 2] = (uint8_t) (b4.b * 255);
+    supersample_buffer[4 * (xr + yb * super_w) + 3] = (uint8_t) (b4.a * 255);
 }
 
 void SoftwareRendererImp::draw_ifs(SVG& svg, Ifs& ifs){
@@ -286,7 +299,6 @@ void SoftwareRendererImp::draw_ifs(SVG& svg, Ifs& ifs){
 
     std::discrete_distribution<> d(ifs.pdf.begin(),ifs.pdf.end());
     for(int i = 0 ; i < iters; i++){
-        //fct_index = rand() % num_fcts;
         fct_index = d(gen);
         mat = ifs.system[fct_index];
         Vector3D mapped = mat * Vector3D(x,y,1);
@@ -562,7 +574,7 @@ void SoftwareRendererImp::resolve( void ) {
       render_target[4 * (i + j * target_w)    ] = (uint8_t) (r/(blocksize*blocksize) ); 
       render_target[4 * (i + j * target_w) + 1] = (uint8_t) (g/(blocksize*blocksize) ); 
       render_target[4 * (i + j * target_w) + 2] = (uint8_t) (b/(blocksize*blocksize) ); 
-      render_target[4 * (i + j * target_w) + 3] = 255-255*alpha; 
+      render_target[4 * (i + j * target_w) + 3] = 255*alpha; 
       //if(total_freq < 10)
           //render_target[4 * (i + j * target_w) + 3] = 255; 
 
