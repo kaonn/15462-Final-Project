@@ -146,7 +146,7 @@ class SoftwareRendererImp : public SoftwareRenderer {
   std::vector<unsigned char> supersample_buffer; 
   size_t super_w, super_h;
 
-  std::vector<unsigned int> histogram;
+  std::vector<float> histogram;
 
 
   size_t freq_max=0;

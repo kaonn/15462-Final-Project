@@ -221,27 +221,47 @@ Color blend(Color element,vector<unsigned char> &buffer,size_t width,
   return Color(cr_p, cg_p, cb_p, ca_p);
 }
 
-void SoftwareRendererImp::update_histogram(double x, double y, Color color){
-    size_t sx = (size_t) x % super_w;
-    size_t sy = (size_t) y % super_h;
+void SoftwareRendererImp::update_histogram(double x, double y, Color c){
+    size_t sx = (size_t) x ;
+    size_t sy = (size_t) y ;
+    
+    size_t xl = (size_t)(floor(x));
+    size_t yt = (size_t)(floor(y));
+    size_t xr = (size_t)(ceil(x));
+    size_t yb = (size_t)(ceil(y));
 
-    if(histogram[sx + sy * super_w] == freq_max){
-        freq_max++;
+    double d;
+    double xf = modf(x,&d);
+    double yf = modf(y,&d);
+
+    double f1 = (1-xf)*(1-yf);
+    double f2 = xf*(1-yf);
+    double f3 = (1-xf)*yf;
+    double f4 = xf*yf;
+
+    histogram[xl + yt * super_w] += f1;
+    histogram[xr + yt * super_w] += f2;
+    histogram[xl + yb * super_w] += f3;
+    histogram[xr + yb * super_w] += f4;
+    double max_f = max(max(histogram[xl + yt * super_w],histogram[xr + yt * super_w]),
+                       max(histogram[xl + yb * super_w],histogram[xr + yb * super_w]));
+    if(max_f > freq_max){
+        freq_max = max_f;
     }
-    histogram[sx + sy * super_w]++;
+
     auto r = supersample_buffer[4*(sx + sy * super_w)];
     auto g = supersample_buffer[4*(sx + sy * super_w) + 1];
     auto b = supersample_buffer[4*(sx + sy * super_w) + 2];
     auto a = supersample_buffer[4*(sx + sy * super_w) + 3];
-    Color c = blend(color,supersample_buffer,super_w,sx,sy);
-    //supersample_buffer[4*(sx + sy * super_w)] = (uint8_t)(r/2 + 127.5*c.r);
-    //supersample_buffer[4*(sx + sy * super_w)+1] = (uint8_t)(g/2 + 127.5*c.g);
-    //supersample_buffer[4*(sx + sy * super_w)+2] = (uint8_t)(b/2 + 127.5*c.b);
-    //supersample_buffer[4*(sx + sy * super_w)+3] = (uint8_t)(a/2 + 127.5*c.a);
-      supersample_buffer[4 * (sx + sy * super_w)    ] = (uint8_t) (c.r * 255);
-      supersample_buffer[4 * (sx + sy * super_w) + 1] = (uint8_t) (c.g * 255);
-      supersample_buffer[4 * (sx + sy * super_w) + 2] = (uint8_t) (c.b * 255);
-      supersample_buffer[4 * (sx + sy * super_w) + 3] = (uint8_t) (c.a * 255);
+    //Color c = blend(color,supersample_buffer,super_w,sx,sy);
+    supersample_buffer[4*(sx + sy * super_w)] = (uint8_t)(r/2 + 127.5*c.r);
+    supersample_buffer[4*(sx + sy * super_w)+1] = (uint8_t)(g/2 + 127.5*c.g);
+    supersample_buffer[4*(sx + sy * super_w)+2] = (uint8_t)(b/2 + 127.5*c.b);
+    supersample_buffer[4*(sx + sy * super_w)+3] = (uint8_t)(a/2 + 127.5*c.a);
+      //supersample_buffer[4 * (sx + sy * super_w)    ] = (uint8_t) (color.r * 255);
+      //supersample_buffer[4 * (sx + sy * super_w) + 1] = (uint8_t) (color.g * 255);
+      //supersample_buffer[4 * (sx + sy * super_w) + 2] = (uint8_t) (color.b * 255);
+      //supersample_buffer[4 * (sx + sy * super_w) + 3] = (uint8_t) (color.a * 255);
 }
 
 void SoftwareRendererImp::draw_ifs(SVG& svg, Ifs& ifs){
@@ -520,7 +540,7 @@ void SoftwareRendererImp::resolve( void ) {
   //
   size_t blocksize = sample_rate;
   float r=0.0,g=0.0,b=0.0,a=0.0,alpha = 0.0;
-  unsigned int total_freq = 0;
+  float total_freq = 0;
   for(size_t j = 0; j < target_h; j++){
     for(size_t i = 0; i < target_w; i++){
 
@@ -542,7 +562,7 @@ void SoftwareRendererImp::resolve( void ) {
       render_target[4 * (i + j * target_w)    ] = (uint8_t) (r/(blocksize*blocksize) ); 
       render_target[4 * (i + j * target_w) + 1] = (uint8_t) (g/(blocksize*blocksize) ); 
       render_target[4 * (i + j * target_w) + 2] = (uint8_t) (b/(blocksize*blocksize) ); 
-      render_target[4 * (i + j * target_w) + 3] = 255*alpha; 
+      render_target[4 * (i + j * target_w) + 3] = 255-255*alpha; 
       //if(total_freq < 10)
           //render_target[4 * (i + j * target_w) + 3] = 255; 
 
