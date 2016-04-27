@@ -147,9 +147,10 @@ class SoftwareRendererImp : public SoftwareRenderer {
   size_t super_w, super_h;
 
   std::vector<unsigned int> histogram;
-  size_t hist_w, hist_h;
+
 
   size_t freq_max=0;
+  double gamma;
 
   bool isIFS=false;
 
@@ -158,7 +159,7 @@ class SoftwareRendererImp : public SoftwareRenderer {
   void fill_pixel( int x, int y, const Color& c );
 
   inline void clear_supersample_buffer  () {
-    supersample_buffer.assign(supersample_buffer.size(),255);
+    supersample_buffer.assign(supersample_buffer.size(),0);
     histogram.assign(histogram.size(),0);
   }
 

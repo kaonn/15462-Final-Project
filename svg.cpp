@@ -378,6 +378,14 @@ void SVGParser::parseIfs( XMLElement* xml, Ifs* ifs ) {
   vector<double> &pdf = ifs->pdf;
   vector<Color> &colors = ifs->colors;
   while(first){
+      printf("first: %s\n", first->Name());
+      if(strcmp(first->Name(), "param") == 0){
+          ifs->gamma = first->DoubleAttribute("gamma");
+          ifs->num_iter = first->UnsignedAttribute("iter");
+          printf("parsed params!\n");
+          first = first->NextSiblingElement();
+          continue;
+      }
       fcts.push_back(parseMatrix(first->Attribute("matrix")));
       pdf.push_back(first->DoubleAttribute("p"));
       colors.push_back(Color::fromHex(first->Attribute("c")));

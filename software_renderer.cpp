@@ -12,8 +12,6 @@ using namespace std;
 
 namespace CMU462 {
 
-#define IFS_ITER 100000
-#define GAMMA 4
 // Implements SoftwareRenderer //
 
 void SoftwareRendererImp::draw_svg( SVG& svg ) {
@@ -25,17 +23,6 @@ void SoftwareRendererImp::draw_svg( SVG& svg ) {
   for ( size_t i = 0; i < svg.elements.size(); ++i ) {
     draw_element(svg,svg.elements[i]);
   }
-
-  // draw canvas outline
-  Vector2D a = transform(Vector2D(    0    ,     0    )); a.x--; a.y--;
-  Vector2D b = transform(Vector2D(svg.width,     0    )); b.x++; b.y--;
-  Vector2D c = transform(Vector2D(    0    ,svg.height)); c.x--; c.y++;
-  Vector2D d = transform(Vector2D(svg.width,svg.height)); d.x++; d.y++;
-
-  rasterize_line(a.x, a.y, b.x, b.y, Color::Black);
-  rasterize_line(a.x, a.y, c.x, c.y, Color::Black);
-  rasterize_line(d.x, d.y, b.x, b.y, Color::Black);
-  rasterize_line(d.x, d.y, c.x, c.y, Color::Black);
 
   // resolve and send to render target
   resolve();
@@ -66,9 +53,7 @@ void SoftwareRendererImp::set_render_target( unsigned char* render_target,
   printf("target_w: %lu target_h: %lu\n", width, height);
   super_w = sample_rate * (target_w);
   super_h = sample_rate * (target_h);
-  hist_w = sample_rate * (target_w);
-  hist_h = sample_rate * (target_h);
-  supersample_buffer.resize(4*(super_w)*(super_h),255);
+  supersample_buffer.resize(4*(super_w)*(super_h),0);
   histogram.resize((super_w)*(super_h),0);
   printf("target set!\n");
 }
@@ -217,52 +202,85 @@ void SoftwareRendererImp::draw_ellipse( Ellipse& ellipse ) {
   // Extra credit 
 
 }
+Color blend(Color element,vector<unsigned char> &buffer,size_t width, 
+            int i, int j){
+  float ea = element.a;
+  float er = ea * element.r;
+  float eg = ea * element.g;
+  float eb = ea * element.b;
+  float ca = (float)buffer[4*(i+j*width)+3]/255;
+  float cr = (float)buffer[4*(i+j*width)]/255 * ca;
+  float cg = (float)buffer[4*(i+j*width)+1]/255 * ca;
+  float cb = (float)buffer[4*(i+j*width)+2]/255 * ca;
 
-void SoftwareRendererImp::update_histogram(double x, double y, Color c){
+  float ca_p = 1 - (1-ea) * (1-ca);
+  float cr_p = (1-ea)*cr + er;
+  float cg_p = (1-ea)*cg + eg;
+  float cb_p = (1-ea)*cb + eb;
+
+  return Color(cr_p, cg_p, cb_p, ca_p);
+}
+
+void SoftwareRendererImp::update_histogram(double x, double y, Color color){
     size_t sx = (size_t) x % super_w;
     size_t sy = (size_t) y % super_h;
 
-    printf("updating: sx: %lu sy: %lu\n", sx, sy);
     if(histogram[sx + sy * super_w] == freq_max){
         freq_max++;
     }
-    histogram[sx + sy * hist_w]++;
+    histogram[sx + sy * super_w]++;
     auto r = supersample_buffer[4*(sx + sy * super_w)];
     auto g = supersample_buffer[4*(sx + sy * super_w) + 1];
     auto b = supersample_buffer[4*(sx + sy * super_w) + 2];
     auto a = supersample_buffer[4*(sx + sy * super_w) + 3];
-    supersample_buffer[4*(sx + sy * super_w)] = (uint8_t)(r/2 + 127.5*c.r);
-    supersample_buffer[4*(sx + sy * super_w)+1] = (uint8_t)(g/2 + 127.5*c.g);
-    supersample_buffer[4*(sx + sy * super_w)+2] = (uint8_t)(b/2 + 127.5*c.b);
-    supersample_buffer[4*(sx + sy * super_w)+3] = (uint8_t)(a/2 + 127.5*c.a);
+    Color c = blend(color,supersample_buffer,super_w,sx,sy);
+    //supersample_buffer[4*(sx + sy * super_w)] = (uint8_t)(r/2 + 127.5*c.r);
+    //supersample_buffer[4*(sx + sy * super_w)+1] = (uint8_t)(g/2 + 127.5*c.g);
+    //supersample_buffer[4*(sx + sy * super_w)+2] = (uint8_t)(b/2 + 127.5*c.b);
+    //supersample_buffer[4*(sx + sy * super_w)+3] = (uint8_t)(a/2 + 127.5*c.a);
+      supersample_buffer[4 * (sx + sy * super_w)    ] = (uint8_t) (c.r * 255);
+      supersample_buffer[4 * (sx + sy * super_w) + 1] = (uint8_t) (c.g * 255);
+      supersample_buffer[4 * (sx + sy * super_w) + 2] = (uint8_t) (c.b * 255);
+      supersample_buffer[4 * (sx + sy * super_w) + 3] = (uint8_t) (c.a * 255);
 }
 
 void SoftwareRendererImp::draw_ifs(SVG& svg, Ifs& ifs){
     double x = ((double)rand() / (double)RAND_MAX) ;
     double y = ((double)rand() / (double)RAND_MAX) ;
+    double r = ((double)rand() / (double)RAND_MAX) ;
+    double g = ((double)rand() / (double)RAND_MAX) ;
+    double b = ((double)rand() / (double)RAND_MAX) ;
+    double a = ((double)rand() / (double)RAND_MAX) ;
     
     printf("svg w: %f, svg h: %f\n",svg.width, svg.height);
+    gamma = ifs.gamma;
     int num_fcts = ifs.system.size();
+    int iters = ifs.num_iter;
     size_t fct_index;
     Matrix3x3 mat;
-    Color c;
+    Color c(r,g,b,a);
 
     isIFS = true;
     std::random_device rd;
     std::mt19937 gen(rd());
 
     std::discrete_distribution<> d(ifs.pdf.begin(),ifs.pdf.end());
-    for(int i = 0 ; i < IFS_ITER; i++){
+    for(int i = 0 ; i < iters; i++){
         //fct_index = rand() % num_fcts;
         fct_index = d(gen);
         mat = ifs.system[fct_index];
-        c = ifs.colors[fct_index];
         Vector3D mapped = mat * Vector3D(x,y,1);
+        c = 0.5*(c + ifs.colors[fct_index]);
         x = sin(M_PI*(mapped.x)/2);
         y = sin(M_PI*(mapped.y)/2);
+        double r2 = mapped.x * mapped.x + mapped.y*mapped.y;
+        //x = mapped.x/r2;
+        //y = mapped.y/r2;
+        
         if(i < 20) continue;
         //rasterize_point((x+1)/2 * (double)svg.width + (double)(target_w - svg.width)/2, (y+1)/2 * (double)svg.height + (double)(target_h - svg.height)/2, Color(1,0,0,1));
         //update_histogram((x) * (double), (y) * (double)super_h, c);
+        //update_histogram((x+1)/2 * (double)(sample_rate*svg.width) + (double)(super_w - sample_rate*svg.width)/2, (y+1)/2 * (double)(sample_rate*svg.height) + (double)(super_h - sample_rate*svg.height)/2, c);
         update_histogram((x+1)/2 * (double)(sample_rate*svg.width) + (double)(super_w - sample_rate*svg.width)/2, (y+1)/2 * (double)(sample_rate*svg.height) + (double)(super_h - sample_rate*svg.height)/2, c);
     }
 
@@ -286,24 +304,6 @@ void SoftwareRendererImp::draw_group(SVG& svg, Group& group ) {
 
 // Rasterization //
 
-Color blend(Color element,vector<unsigned char> &buffer,size_t width, 
-            int i, int j){
-  float ea = element.a;
-  float er = ea * element.r;
-  float eg = ea * element.g;
-  float eb = ea * element.b;
-  float ca = (float)buffer[4*(i+j*width)+3]/255;
-  float cr = (float)buffer[4*(i+j*width)]/255 * ca;
-  float cg = (float)buffer[4*(i+j*width)+1]/255 * ca;
-  float cb = (float)buffer[4*(i+j*width)+2]/255 * ca;
-
-  float ca_p = 1 - (1-ea) * (1-ca);
-  float cr_p = (1-ea)*cr + er;
-  float cg_p = (1-ea)*cg + eg;
-  float cb_p = (1-ea)*cb + eb;
-
-  return Color(cr_p, cg_p, cb_p, ca_p);
-}
 // The input arguments in the rasterization functions 
 // below are all defined in screen space coordinates
 
@@ -536,13 +536,15 @@ void SoftwareRendererImp::resolve( void ) {
            total_freq += histogram[(k + l*super_w)];
         }
       }
-      a = log(total_freq)/log(freq_max) * a;
-      alpha = pow(a,(double)1/GAMMA);
+      a = log(total_freq)/log(freq_max);
+      alpha = pow(a,(double)1/gamma);
 
-      render_target[4 * (i + j * target_w)    ] = (uint8_t) (r/(blocksize*blocksize) * alpha); 
-      render_target[4 * (i + j * target_w) + 1] = (uint8_t) (g/(blocksize*blocksize) * alpha); 
-      render_target[4 * (i + j * target_w) + 2] = (uint8_t) (b/(blocksize*blocksize) * alpha); 
+      render_target[4 * (i + j * target_w)    ] = (uint8_t) (r/(blocksize*blocksize) ); 
+      render_target[4 * (i + j * target_w) + 1] = (uint8_t) (g/(blocksize*blocksize) ); 
+      render_target[4 * (i + j * target_w) + 2] = (uint8_t) (b/(blocksize*blocksize) ); 
       render_target[4 * (i + j * target_w) + 3] = 255*alpha; 
+      //if(total_freq < 10)
+          //render_target[4 * (i + j * target_w) + 3] = 255; 
 
     }
   }

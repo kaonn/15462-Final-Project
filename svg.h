@@ -116,11 +116,13 @@ struct Image : SVGElement {
 };
 
 struct Ifs : SVGElement {
-  Ifs () : SVGElement (IFS) {}
+  Ifs () : SVGElement (IFS), num_iter(10000), gamma(5){}
   std::vector <Matrix3x3> system;
   std::vector <double> pdf;
   std::vector <Color> colors;
   std::vector <unsigned int> variations;
+  double gamma;
+  unsigned int num_iter;
 
 };
 struct SVG {
