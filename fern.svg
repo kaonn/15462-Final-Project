@@ -1,0 +1,24 @@
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="50px" height="50px" viewBox="0 0 487.211 642.045" enable-background="new 0 0 487.211 642.045"
+	 xml:space="preserve">
+
+<ifs>
+    <fn matrix="0 0 0;
+                0 0.16 0;
+                0 0 0"
+        p="0.01" c="#FF0000" />
+    <fn matrix="0.85 0.04 0;
+                -0.04 0.85 1.6;
+                0 0 0"
+        p="0.85" c="#00FF00"/>
+    <fn matrix="0.20 -0.26 0;
+                0.23 0.22 1.6;
+                0 0 0"
+        p="0.07" c="#0000FF"/>
+    <fn matrix="-0.15 0.28 0;
+                0.26 0.24 0.44;
+                0 0 0"
+        p="0.07" c="#FF00FF"/>
+  </ifs>
+    
+</svg>
